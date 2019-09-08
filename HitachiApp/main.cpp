@@ -8,8 +8,8 @@ int main(int argc, char *argv[])
     hitachiAPI hitaci;
 
     hitaci.open("COM1");
-    QString mode = "AVERAGE";
-    hitaci.LightControlMode(WRITE, mode);
+    quint16 level = 7;
+    hitaci.ZoomPositionGet(level);
 
     return a.exec();
 }

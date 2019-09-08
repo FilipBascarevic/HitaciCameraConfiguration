@@ -14,7 +14,7 @@ bool hitachiAPI::extractData(char *data) {
         valid_message = false;
     }
     // Check Check Sum
-    // Add here code
+    valid_message = checkCheckSum(receive_buff, 10);
 
 
     // Next 6 bytes are received data
@@ -22,6 +22,54 @@ bool hitachiAPI::extractData(char *data) {
 
     return valid_message;
 
+
+}
+
+void hitachiAPI::calculateCheckSum(char *data, unsigned int len) {
+
+    unsigned int sum = 0x0;
+
+    for (unsigned int i = 0; i < len-2; i++) {
+        if ((i == 0) || (i==len-3))
+            sum += data[i];
+        else
+            sum += data[i] + 0x30;
+    }
+
+    // Do XOR with sum
+    sum ^= 0xFF;
+
+    // Set last two bits in data
+    data[len-2] = (char) ((sum & 0xF0) >> 4);
+    data[len-1] = (char) (sum & 0x0F);
+
+    return;
+
+}
+
+bool hitachiAPI::checkCheckSum(char *data, unsigned int len) {
+
+    unsigned int sum = 0x0;
+    bool valid_checkSum = true;
+
+    for (unsigned int i = 0; i < len-2; i++) {
+        if ((i == 0) || (i==len-3))
+            sum += data[i];
+        else
+            sum += data[i] + 0x30;
+    }
+
+    // Do XOR with sum
+    sum ^= 0xFF;
+
+    // Check last two bits in data
+    if (data[len-2] != (char) ((sum & 0xF0) >> 4))
+        valid_checkSum = false;
+
+    if (data[len-1] != (char) (sum & 0x0F))
+        valid_checkSum = false;
+
+    return valid_checkSum;
 
 }
 
@@ -62,6 +110,7 @@ void hitachiAPI::insertData(char *data, DIRECTION dir){
     // ETX
     transmit_buff[15] = 0x03;
     // Add for check sum calculation
+    calculateCheckSum(transmit_buff, 18);
 }
 
 void hitachiAPI::LightControlMode(DIRECTION dir, QString &mode) {
@@ -205,4 +254,185 @@ void hitachiAPI::LightControlMode(DIRECTION dir, QString &mode) {
 
     }
 
+}
+
+void hitachiAPI::ZoomPositionSet(quint16 &value) {
+
+
+    qint64 read_write_bytes = 0;
+
+    char command[9] = {};
+    char response[4] = {};
+
+    // command message for transmitting
+    command[0] = 0x02;
+    command[1] = '0';
+    command[2] = 'z';
+    command[3] = 'a';
+    // convert number to HEX ASCII
+    quint16 valueShift = static_cast <quint16> (value << 6);
+    quint16 mask = 0x000F;
+    quint16 number = 0;
+    // Convert 16bit number into HEX ASCII :D
+    for (int i = 0; i < 4; i++) {
+        number = valueShift & mask;
+        number = number >> (i*4);
+        switch (number) {
+            case 0: command[7-i] = '0';
+                break;
+            case 1: command[7-i] = '1';
+                break;
+            case 2: command[7-i] = '2';
+                break;
+            case 3: command[7-i] = '3';
+                break;
+            case 4: command[7-i] = '4';
+                break;
+            case 5: command[7-i] = '5';
+                break;
+            case 6: command[7-i] = '6';
+                break;
+            case 7: command[7-i] = '7';
+                break;
+            case 8: command[7-i] = '8';
+                break;
+            case 9: command[7-i] = '9';
+                break;
+            case 10: command[7-i] = 'A';
+                break;
+            case 11: command[7-i] = 'B';
+                break;
+            case 12: command[7-i] = 'C';
+                break;
+            case 13: command[7-i] = 'D';
+                break;
+            case 14: command[7-i] = 'E';
+                break;
+            case 15: command[7-i] = 'F';
+                break;
+        }
+        mask = static_cast <quint16> (mask << 4);
+    }
+
+    command[8] = 0x03;
+
+    // send command
+    read_write_bytes = write(command, 9);
+    if (read_write_bytes != 9) {
+        qFatal("Command isn't sent successfully!!!");
+    }
+
+    // replay
+    read_write_bytes = read(response, 4, 3000);
+    if (read_write_bytes != 4) {
+        qFatal("Not enought caracters is received or timeout is occurred!!!");
+    }
+
+    // Check response
+    // STX
+    if (response[0] != 0x02) {
+        qDebug("Bed response, STX");
+    }
+    // CAM ID
+    if (response[1] != '0') {
+        qDebug("Bed response, CAM ID");
+    }
+    // ACK
+    if (response[2] != 0x06) {
+        qDebug("Bed response, ACK");
+    }
+    // ETX
+    if (response[3] != 0x03) {
+        qDebug("Bed response, ETX");
+    }
+
+}
+
+void hitachiAPI::ZoomPositionGet(quint16 &value) {
+    qint64 read_write_bytes = 0;
+
+    char command[6] = {};
+    char response[8] = {};
+
+    // command message for transmitting
+    command[0] = 0x02;
+    command[1] = '0';
+    command[2] = 'z';
+    command[3] = 'a';
+    command[4] = '?';
+    command[5] = 0x03;
+
+    // send command
+    read_write_bytes = write(command, 6);
+    if (read_write_bytes != 6) {
+        qFatal("Command isn't sent successfully!!!");
+    }
+
+    // replay
+    read_write_bytes = read(response, 8, 3000);
+    if (read_write_bytes != 8) {
+        qFatal("Not enought caracters is received or timeout is occurred!!!");
+    }
+
+    // Check response
+    // STX
+    if (response[0] != 0x02) {
+        qDebug("Bed response, STX");
+    }
+    // CAM ID
+    if (response[1] != '0') {
+        qDebug("Bed response, CAM ID");
+    }
+    // ACK
+    if (response[2] != 0x06) {
+        qDebug("Bed response, ACK");
+    }
+    // ETX
+    if (response[7] != 0x03) {
+        qDebug("Bed response, ETX");
+    }
+
+    // extract data from response
+    value = 0;
+    // convert HEX ASCII to number
+    quint16 mask = 0;
+    // Convert 16bit number into HEX ASCII :D
+    for (int i = 0; i < 4; i++) {
+        switch (response[3+i]) {
+            case '0': mask = 0;
+                break;
+            case '1': mask = 1;
+                break;
+            case '2': mask = 2;
+                break;
+            case '3': mask = 3;
+                break;
+            case '4': mask = 4;
+                break;
+            case '5': mask = 5;
+                break;
+            case '6': mask = 6;
+                break;
+            case '7': mask = 7;
+                break;
+            case '8': mask = 8;
+                break;
+            case '9': mask = 9;
+                break;
+            case 'A': mask = 10;
+                break;
+            case 'B': mask = 11;
+                break;
+            case 'C': mask = 12;
+                break;
+            case 'D': mask = 13;
+                break;
+            case 'E': mask = 14;
+                break;
+            case 'F': mask = 15;
+                break;
+        }
+        mask = static_cast <quint16> (mask << 4*(3-i));
+        value = value | mask;
+    }
 }
